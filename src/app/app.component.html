@@ -21,19 +21,20 @@
   </div>
 
   <div style="width: 90%; height: 400px; margin-left: auto; margin-right: auto;">
-    <h2>Deaths per day in the Netherlands, China, Spain, Italy and Iran</h2>
-  <ngx-charts-line-chart
-    [legend]="true"
-    [animations]="animations"
-    [showXAxisLabel]="showXAxisLabel"
-    [showYAxisLabel]="showYAxisLabel"
-    [xAxis]="xAxis"
-    [yAxis]="yAxis"
-    [xAxisLabel]="xAxisLabel"
-    [yAxisLabel]="yAxisLabel"
-    [timeline]="timeline"
-    [results]="nlGraphData"
-  >
-  </ngx-charts-line-chart>
+    <h2>Deaths per day in different countries</h2>
+    <ng-select [multiple]="true" [items]="countries" bindLabel="label" [(ngModel)]="selectedCountries" (ngModelChange)="updatePerCountryGraphData()"></ng-select>
+    <ngx-charts-line-chart
+      [legend]="true"
+      [animations]="animations"
+      [showXAxisLabel]="showXAxisLabel"
+      [showYAxisLabel]="showYAxisLabel"
+      [xAxis]="xAxis"
+      [yAxis]="yAxis"
+      [xAxisLabel]="xAxisLabel"
+      [yAxisLabel]="yAxisLabel"
+      [timeline]="timeline"
+      [results]="perCountryGraphData"
+    >
+    </ngx-charts-line-chart>
   </div>
 </div>

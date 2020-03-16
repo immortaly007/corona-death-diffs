@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { LineChartComponent } from '@swimlane/ngx-charts';
+import { environment } from '../environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -12,12 +13,14 @@ export class AppComponent implements OnInit {
 
   data: any;
   dates: string[];
+  countryCodes: string[];
+  countries: { code: string, label: string}[];
   totalDeathsPerCountry: { [countryCode: string]: number[]};
   deathDiffPerCountryPerDay: { [countryCode: string]: number[]};
   globalDeathDiff: number[];
 
   graphData: any;
-  nlGraphData: any;
+  perCountryGraphData: any;
 
   view: any[] = [1200, 500];
 
@@ -34,30 +37,42 @@ export class AppComponent implements OnInit {
   timeline = true;
 
 
+  selectedCountries: { code: string, label: string}[] = [
+    { code: 'NL', label: 'Netherlands'},
+    { code: 'CN', label: 'China'},
+    { code: 'IT', label: 'Italy'},
+    { code: 'IR', label: 'Iran'},
+  ];
+
+
   constructor(private http: HttpClient) {
   }
 
   ngOnInit(): void {
-    this.http.get('/assets/map-data.json').subscribe((d: any[]) => {
+    this.http.get(environment.dataEndpoint).subscribe((d: any[]) => {
       this.data = d;
       this.totalDeathsPerCountry = {};
       // Initialize "totalDeathsPerCountry"
-      const countryCodes: string[] = d[0].data.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== '');
-      countryCodes.forEach(c => this.totalDeathsPerCountry[c] = []);
+      this.countryCodes = d[0].data.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== '');
+      this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = []);
+      this.countries = this.countryCodes.map(cc => ({
+        code: cc,
+        label: d[0].data.find(cd => cd.countrycode === cc).countrylabel,
+      }));
 
       // Fill "dates"
       this.dates = d.map(dateData => dateData.date);
 
       // Fill totalDeathsPerCountry codes
       for (let i = 0; i < d.length; i++) {
-        for (const countryCode of countryCodes) {
+        for (const countryCode of this.countryCodes) {
           this.totalDeathsPerCountry[countryCode].push(+d[i].data.find(cd => cd.countrycode === countryCode).totaldeaths);
         }
       }
 
       // Fill deathDiffPerCountryPerDay
       this.deathDiffPerCountryPerDay = {};
-      for (const countryCode of countryCodes) {
+      for (const countryCode of this.countryCodes) {
         const totalDeathsPerDay = this.totalDeathsPerCountry[countryCode];
         this.deathDiffPerCountryPerDay[countryCode] = totalDeathsPerDay.map((data, i) => {
           if (i === 0) {
@@ -80,13 +95,9 @@ export class AppComponent implements OnInit {
       console.log(this.globalDeathDiff);
 
       this.graphData = [this.buildGraphData('Global death diff', this.globalDeathDiff)];
-      this.nlGraphData = [
-        this.buildGraphData('Netherlands', this.deathDiffPerCountryPerDay.NL),
-        this.buildGraphData('China', this.deathDiffPerCountryPerDay.CN),
-        this.buildGraphData('Italy', this.deathDiffPerCountryPerDay.IT),
-        this.buildGraphData('Iran', this.deathDiffPerCountryPerDay.IR),
-        ];
       console.log(JSON.stringify(this.graphData));
+
+      this.updatePerCountryGraphData();
     });
   }
 
@@ -100,4 +111,7 @@ export class AppComponent implements OnInit {
     };
   }
 
+  updatePerCountryGraphData() {
+    this.perCountryGraphData = this.selectedCountries.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code]));
+  }
 }

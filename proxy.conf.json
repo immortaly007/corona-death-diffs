@@ -1,0 +1,7 @@
+{
+    "/api": {
+      "target": "https://thevirustracker.com/",
+      "secure": false,
+      "pathRewrite": {"^/api" : ""}
+    }
+}

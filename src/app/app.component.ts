@@ -133,7 +133,7 @@ export class AppComponent implements OnInit {
       // Less then 10 is probably wrong...(sadly), lets borrow half of tomorrow
       if (data[i] < 10) {
         data[i] += data[i + 1] / 2;
-        data[i + 1] = data[i];
+        data[i + 1] = data[i + 1] / 2;
       }
     }
 

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { LineChartComponent } from '@swimlane/ngx-charts';
+import { LineChartComponent, MultiSeries, Series } from '@swimlane/ngx-charts';
 import { environment } from '../environments/environment';
 
 @Component({
@@ -19,7 +19,7 @@ export class AppComponent implements OnInit {
   deathDiffPerCountryPerDay: { [countryCode: string]: number[]};
   globalDeathDiff: number[];
 
-  graphData: any;
+  graphData: MultiSeries;
   perCountryGraphData: any;
 
   view: any[] = [1200, 500];
@@ -94,14 +94,39 @@ export class AppComponent implements OnInit {
       console.log(this.deathDiffPerCountryPerDay);
       console.log(this.globalDeathDiff);
 
-      this.graphData = [this.buildGraphData('Global death diff', this.globalDeathDiff)];
+      const countriesSortedByDeaths = this.countries.map(c => ({ code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
+      countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
+
+      const topCountries = countriesSortedByDeaths.slice(0, 7);
+      const topCountryDeathDiffs = topCountries
+        .map(c => this.deathDiffPerCountryPerDay[c.code])
+        .reduce((a, b) => [...a].map((v, i) => v + b[i]), new Array(this.dates.length).fill(0));
+      const remainingDeathDiffs = this.globalDeathDiff.map((v, i) => v - topCountryDeathDiffs[i]);
+
+      this.graphData = topCountries
+        .map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code]));
+      this.graphData.push(this.buildGraphData('Other', remainingDeathDiffs));
+
+      // this.graphData.sort((a, b) => {
+      //   const av = this.sum(a);
+      //   const bv = this.sum(b);
+      //   return av === bv ? 0 : (av > bv ? -1 : 1);
+      // });
       console.log(JSON.stringify(this.graphData));
 
       this.updatePerCountryGraphData();
     });
   }
 
-  private buildGraphData(name: string, data: number[]) {
+  private totalForCountry(code: string): number {
+    return this.totalDeathsPerCountry[code][this.dates.length - 1];
+  }
+
+  updatePerCountryGraphData() {
+    this.perCountryGraphData = this.selectedCountries.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code]));
+  }
+
+  private buildGraphData(name: string, data: number[]): Series {
     return {
       name,
       series: data.map((gdd, i) => ({
@@ -111,7 +136,4 @@ export class AppComponent implements OnInit {
     };
   }
 
-  updatePerCountryGraphData() {
-    this.perCountryGraphData = this.selectedCountries.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code]));
-  }
 }

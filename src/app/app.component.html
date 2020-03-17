@@ -5,7 +5,7 @@
   <div style="width: 90%; height: 400px; margin-left: auto; margin-right: auto;">
     <h2>Global deaths per day</h2>
   <!-- Based on: https://stackblitz.com/edit/swimlane-line-chart?embed=1&file=app/app.component.ts -->
-  <ngx-charts-line-chart
+  <ngx-charts-area-chart-stacked
     [legend]="legend"
     [animations]="animations"
     [showXAxisLabel]="showXAxisLabel"
@@ -17,7 +17,7 @@
     [timeline]="timeline"
     [results]="graphData"
   >
-  </ngx-charts-line-chart>
+  </ngx-charts-area-chart-stacked>
   </div>
 
   <div style="width: 90%; height: 400px; margin-left: auto; margin-right: auto;">

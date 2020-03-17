@@ -127,6 +127,16 @@ export class AppComponent implements OnInit {
   }
 
   private buildGraphData(name: string, data: number[]): Series {
+
+    // Smooth!
+    for (let i = 0; i < data.length - 1; i++) {
+      // Less then 10 is probably wrong...(sadly), lets borrow half of tomorrow
+      if (data[i] < 10) {
+        data[i] += data[i + 1] / 2;
+        data[i + 1] = data[i];
+      }
+    }
+
     return {
       name,
       series: data.map((gdd, i) => ({

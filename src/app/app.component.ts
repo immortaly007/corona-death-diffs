@@ -43,6 +43,9 @@ export class AppComponent implements OnInit {
     { code: 'IT', label: 'Italy'},
     { code: 'IR', label: 'Iran'},
   ];
+  smoothing = true;
+
+  static readonly SMOOTH_AMOUNT = 0.5;
 
 
   constructor(private http: HttpClient) {
@@ -89,31 +92,12 @@ export class AppComponent implements OnInit {
         this.globalDeathDiff[i] += v;
       }));
 
-      console.log(this.dates);
-      console.log(this.totalDeathsPerCountry);
-      console.log(this.deathDiffPerCountryPerDay);
-      console.log(this.globalDeathDiff);
+      // console.log(this.dates);
+      // console.log(this.totalDeathsPerCountry);
+      // console.log(this.deathDiffPerCountryPerDay);
+      // console.log(this.globalDeathDiff);
 
-      const countriesSortedByDeaths = this.countries.map(c => ({ code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
-      countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
-
-      const topCountries = countriesSortedByDeaths.slice(0, 7);
-      const topCountryDeathDiffs = topCountries
-        .map(c => this.deathDiffPerCountryPerDay[c.code])
-        .reduce((a, b) => [...a].map((v, i) => v + b[i]), new Array(this.dates.length).fill(0));
-      const remainingDeathDiffs = this.globalDeathDiff.map((v, i) => v - topCountryDeathDiffs[i]);
-
-      this.graphData = topCountries
-        .map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code]));
-      this.graphData.push(this.buildGraphData('Other', remainingDeathDiffs));
-
-      // this.graphData.sort((a, b) => {
-      //   const av = this.sum(a);
-      //   const bv = this.sum(b);
-      //   return av === bv ? 0 : (av > bv ? -1 : 1);
-      // });
-      console.log(JSON.stringify(this.graphData));
-
+      this.updateGlobalData();
       this.updatePerCountryGraphData();
     });
   }
@@ -122,24 +106,53 @@ export class AppComponent implements OnInit {
     return this.totalDeathsPerCountry[code][this.dates.length - 1];
   }
 
-  updatePerCountryGraphData() {
-    this.perCountryGraphData = this.selectedCountries.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code]));
+  updateGlobalData() {
+
+    const countriesSortedByDeaths = this.countries.map(c => ({ code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
+    countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
+
+    const topCountries = countriesSortedByDeaths.slice(0, 7);
+    const topCountryDeathDiffs = topCountries
+      .map(c => this.deathDiffPerCountryPerDay[c.code])
+      .reduce((a, b) => [...a].map((v, i) => v + b[i]), new Array(this.dates.length).fill(0));
+    const remainingDeathDiffs = this.globalDeathDiff.map((v, i) => v - topCountryDeathDiffs[i]);
+
+    this.graphData = topCountries
+      .map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
+    this.graphData.push(this.buildGraphData('Other', remainingDeathDiffs, this.smoothing));
   }
 
-  private buildGraphData(name: string, data: number[]): Series {
+  updatePerCountryGraphData() {
 
+    const countriesSortedByDeaths = this.selectedCountries.map(c => ({ code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
+    countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
+
+    this.perCountryGraphData = countriesSortedByDeaths.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
+  }
+
+  private buildGraphData(name: string, data: number[], smoothing: boolean = true): Series {
+
+    let smoothedData: number[];
     // Smooth!
-    for (let i = 0; i < data.length - 1; i++) {
-      // Less then 10 is probably wrong...(sadly), lets borrow half of tomorrow
-      if (data[i] < 10) {
-        data[i] += data[i + 1] / 2;
-        data[i + 1] = data[i + 1] / 2;
+    if (smoothing) {
+      smoothedData = [... data];
+      for (let i = 0; i < data.length - 1; i++) {
+        // Less then 10 is probably wrong...(sadly), especially if it greater than 10 the next day. lets borrow half of tomorrow
+        if (data[i] < 10 && data[i + 1] > 10) {
+          const smoothAmount = smoothedData[i + 1] * AppComponent.SMOOTH_AMOUNT;
+          smoothedData[i] += smoothAmount;
+          smoothedData[i + 1] -= smoothAmount;
+        }
       }
+    } else {
+      smoothedData = [...data];
     }
+
+    smoothedData.splice(smoothedData.length - 1, 1);
 
     return {
       name,
-      series: data.map((gdd, i) => ({
+      series: smoothedData.map((gdd, i) => ({
         name: this.dates[i],
         value: gdd
       }))

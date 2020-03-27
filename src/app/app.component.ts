@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { LineChartComponent, MultiSeries, Series } from '@swimlane/ngx-charts';
-import { environment } from '../environments/environment';
+import {Component, OnInit} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {MultiSeries, Series} from '@swimlane/ngx-charts';
+import {environment} from '../environments/environment';
+import {isoCountries} from './isoCountries';
 
 @Component({
   selector: 'app-root',
@@ -14,9 +15,9 @@ export class AppComponent implements OnInit {
   data: any;
   dates: string[];
   countryCodes: string[];
-  countries: { code: string, label: string}[];
-  totalDeathsPerCountry: { [countryCode: string]: number[]};
-  deathDiffPerCountryPerDay: { [countryCode: string]: number[]};
+  countries: { code: string, label: string }[];
+  totalDeathsPerCountry: { [countryCode: string]: number[] };
+  deathDiffPerCountryPerDay: { [countryCode: string]: number[] };
   globalDeathDiff: number[];
 
   graphData: MultiSeries;
@@ -37,11 +38,11 @@ export class AppComponent implements OnInit {
   timeline = true;
 
 
-  selectedCountries: { code: string, label: string}[] = [
-    { code: 'NL', label: 'Netherlands'},
-    { code: 'CN', label: 'China'},
-    { code: 'IT', label: 'Italy'},
-    { code: 'IR', label: 'Iran'},
+  selectedCountries: { code: string, label: string }[] = [
+    {code: 'NL', label: 'Netherlands'},
+    {code: 'CN', label: 'China'},
+    {code: 'IT', label: 'Italy'},
+    {code: 'IR', label: 'Iran'},
   ];
   smoothing = true;
 
@@ -52,26 +53,46 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.http.get(environment.dataEndpoint).subscribe((d: any[]) => {
+    this.http.get(environment.dataEndpoint).subscribe((res) => {
+      let d: any[] = res['data'];
       this.data = d;
       this.totalDeathsPerCountry = {};
+
       // Initialize "totalDeathsPerCountry"
-      this.countryCodes = d[0].data.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== '');
+      this.countryCodes = d.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== '');
+      this.countryCodes = [...new Set(this.countryCodes)];
       this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = []);
+      console.log(this.countryCodes);
       this.countries = this.countryCodes.map(cc => ({
         code: cc,
-        label: d[0].data.find(cd => cd.countrycode === cc).countrylabel,
+        label: isoCountries[cc]
       }));
 
       // Fill "dates"
-      this.dates = d.map(dateData => dateData.date);
+      this.dates = [...new Set(d.map(dateData => dateData.date))];
 
+      // Old code
       // Fill totalDeathsPerCountry codes
-      for (let i = 0; i < d.length; i++) {
-        for (const countryCode of this.countryCodes) {
-          this.totalDeathsPerCountry[countryCode].push(+d[i].data.find(cd => cd.countrycode === countryCode).totaldeaths);
-        }
+      // for (let i = 0; i < d.length; i++) {
+      //   for (const countryCode of this.countryCodes) {
+      //     this.totalDeathsPerCountry[countryCode].push(+d[i].data.find(cd => cd.countrycode === countryCode).totaldeaths);
+      //   }
+      // }
+      //
+      // //FIXME: this.data.find() is undefined, don't know why
+      // for (const day of this.dates) {
+      //   for (const countryCode of this.countryCodes) {
+      //     let num: number = this.data.find(cd => cd.countrycode === countryCode && cd.date == day).deaths;
+      //     this.totalDeathsPerCountry[countryCode].push(num);
+      //   }
+      // }
+
+      for(const entry of this.data){
+        //FIXME: This assumes that each country starts on the same day and is sorted, which it doesn't
+        this.totalDeathsPerCountry[entry.countrycode].push(entry.deaths);
       }
+
+
 
       // Fill deathDiffPerCountryPerDay
       this.deathDiffPerCountryPerDay = {};
@@ -108,7 +129,7 @@ export class AppComponent implements OnInit {
 
   updateGlobalData() {
 
-    const countriesSortedByDeaths = this.countries.map(c => ({ code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
+    const countriesSortedByDeaths = this.countries.map(c => ({code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
     countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
 
     const topCountries = countriesSortedByDeaths.slice(0, 7);
@@ -124,7 +145,7 @@ export class AppComponent implements OnInit {
 
   updatePerCountryGraphData() {
 
-    const countriesSortedByDeaths = this.selectedCountries.map(c => ({ code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
+    const countriesSortedByDeaths = this.selectedCountries.map(c => ({code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
     countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
 
     this.perCountryGraphData = countriesSortedByDeaths.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
@@ -135,7 +156,7 @@ export class AppComponent implements OnInit {
     let smoothedData: number[];
     // Smooth!
     if (smoothing) {
-      smoothedData = [... data];
+      smoothedData = [...data];
       for (let i = 0; i < data.length - 1; i++) {
         // Less then 10 is probably wrong...(sadly), especially if it greater than 10 the next day. lets borrow half of tomorrow
         if (data[i] < 10 && data[i + 1] > 10) {

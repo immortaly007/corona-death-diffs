@@ -4,7 +4,7 @@
 
 export const environment = {
   production: false,
-  dataEndpoint: 'assets/map-data.json',
+  dataEndpoint: 'assets/map-data.v2.json',
 };
 
 /*

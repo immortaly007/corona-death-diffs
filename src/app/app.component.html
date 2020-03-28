@@ -1,8 +1,8 @@
 <div class="content">
   <h1>Corona Deaths per day</h1>
 
-  <div *ngIf="!data">Loading...</div>
-  <div *ngIf="data">
+  <div *ngIf="!dates">Loading...</div>
+  <div *ngIf="dates">
     <mat-slide-toggle [(ngModel)]="smoothing" (ngModelChange)="updatePerCountryGraphData(); updateGlobalData();">Smoothing</mat-slide-toggle>
     <div class="graph">
       <h2>Global deaths per day</h2>

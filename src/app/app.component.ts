@@ -5,6 +5,8 @@ import {environment} from '../environments/environment';
 import {isoCountries} from './isoCountries';
 
 import * as moment from 'moment';
+import { DataService } from './data.service';
+import { combineLatest } from 'rxjs';
 
 @Component({
   selector: 'app-root',
@@ -13,20 +15,14 @@ import * as moment from 'moment';
 })
 export class AppComponent implements OnInit {
 
-
-  constructor(private http: HttpClient) {
-  }
-
   static readonly SMOOTH_AMOUNT = 0.5;
   title = 'corona-deaths';
 
-  data: any[];
   dates: string[];
-  countryCodes: string[];
   countries: { code: string, label: string }[];
   totalDeathsPerCountry: { [countryCode: string]: number[] };
+  globalDeathDiffs: number[];
   deathDiffPerCountryPerDay: { [countryCode: string]: number[] };
-  globalDeathDiff: number[];
 
   graphData: MultiSeries;
   perCountryGraphData: MultiSeries;
@@ -59,68 +55,35 @@ export class AppComponent implements OnInit {
   estimateDeathRate = 1.0;
   estimateTimeTillDeath = 14;
 
+  constructor(private dataService: DataService) {
+  }
+
   ngOnInit(): void {
-    this.http.get(environment.dataEndpoint).subscribe((res: {data: any[], tokens: string[]}) => {
 
-      // I don't like the non-ISO dates, so let's convert those first (this makes the data become sortable)
-      res.data.forEach(e => e.date = this.apiToIsoDate(e.date));
-
-      // let's also sort the data on date...
-      res.data.sort((a, b) => a.date === b.date ? 0 : (a.date < b.date ? -1 : 1));
-
-      console.log(res.data.filter(e => e.countrycode === 'NL'));
-
-      const d = this.data = res.data;
-      this.totalDeathsPerCountry = {};
-
-      // Initialize "totalDeathsPerCountry"
-      this.countryCodes = d.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== '');
-      this.countryCodes = [...new Set(this.countryCodes)];
-      console.log(this.countryCodes);
-      this.countries = this.countryCodes.map(cc => ({
-        code: cc,
-        label: isoCountries[cc]
-      }));
-
-      // Fill "dates"
-      this.dates = [...new Set(d.map(e => e.date))].sort();
-
-      // Initialize "total deaths per country"
-      this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = new Array(this.dates.length).fill(0));
-
-      for (const entry of d) {
-        const dateIndex = this.dates.indexOf(entry.date);
-        this.totalDeathsPerCountry[entry.countrycode][dateIndex] = +entry.deaths;
-      }
-
-      // Fill deathDiffPerCountryPerDay
-      this.deathDiffPerCountryPerDay = {};
-      for (const countryCode of this.countryCodes) {
-        const totalDeathsPerDay = this.totalDeathsPerCountry[countryCode];
-        this.deathDiffPerCountryPerDay[countryCode] = totalDeathsPerDay.map((data, i) => {
-          if (i === 0) {
-            return data;
-          } else {
-            return data - totalDeathsPerDay[i - 1];
-          }
-        });
-      }
-
-      // Fill globalDeathDiff
-      this.globalDeathDiff = new Array(this.dates.length).fill(0);
-      Object.values(this.deathDiffPerCountryPerDay).forEach(dd => dd.forEach((v, i) => {
-        this.globalDeathDiff[i] += v;
-      }));
-
+    // tslint:disable-next-line:max-line-length
+    combineLatest([this.dataService.dates, this.dataService.countries, this.dataService.totalDeathsPerCountry, this.dataService.globalDeathDiff, this.dataService.deathDiffPerCountryPerDay])
+      .subscribe(([dates, countries, totalDeathsPerCountry, globalDeathDiffs, deathDiffPerCountryPerDay]) => {
+        this.dates = dates;
+        this.countries = countries;
+        this.totalDeathsPerCountry = totalDeathsPerCountry;
+        this.globalDeathDiffs = globalDeathDiffs;
+        this.deathDiffPerCountryPerDay = deathDiffPerCountryPerDay;
+        this.updateGraphData();
+      });
       // console.log(this.dates);
       // console.log(this.totalDeathsPerCountry);
       // console.log(this.deathDiffPerCountryPerDay);
       // console.log(this.globalDeathDiff);
 
+  }
+
+  private updateGraphData() {
+
+    if (this.dates && this.countries && this.deathDiffPerCountryPerDay) {
       this.updateGlobalData();
       this.updatePerCountryGraphData();
       this.updateEstimatedInfectedData();
-    });
+    }
   }
 
   private totalForCountry(code: string): number {
@@ -136,7 +99,7 @@ export class AppComponent implements OnInit {
     const topCountryDeathDiffs = topCountries
       .map(c => this.deathDiffPerCountryPerDay[c.code])
       .reduce((a, b) => [...a].map((v, i) => v + b[i]), new Array(this.dates.length).fill(0));
-    const remainingDeathDiffs = this.globalDeathDiff.map((v, i) => v - topCountryDeathDiffs[i]);
+    const remainingDeathDiffs = this.globalDeathDiffs.map((v, i) => v - topCountryDeathDiffs[i]);
 
     this.graphData = topCountries
       .map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
@@ -209,12 +172,5 @@ export class AppComponent implements OnInit {
       this.buildGraphData('Estimated # infected', estimatedInfected, false),
     ];
 
-  }
-
-  apiToIsoDate(date: string) {
-    return moment(date, 'MM/DD/YYYY').format('YYYY-MM-DD');
-    // const dateRegex = /^([0-9]+)\/([0-9]+)\/([0-9]+)$/;
-    // const res = dateRegex.exec(date);
-    // return moment(2000 + Number.parseInt(res[3], 10), Number.parseInt(res[1], 10) - 1, Number.parseInt(res[2], 10)).toISOString();
   }
 }

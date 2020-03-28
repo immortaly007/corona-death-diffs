@@ -44,6 +44,7 @@ export class AppComponent implements OnInit {
   xAxisLabel = 'Date';
   yAxisLabel = 'Deaths';
   timeline = true;
+  logY = false;
 
 
   selectedCountries: { code: string, label: string }[] = [
@@ -58,9 +59,16 @@ export class AppComponent implements OnInit {
   estimateDeathRate = 1.0;
   estimateTimeTillDeath = 8;
 
-  kalmanR = 0.01;
-  kalmanQ = 10;
-  kalmanA = 1.3;
+  selectedCountryTotalInfectedEstimate: number;
+  selectedCountryReportedTotalInfected: number;
+  /**
+   * Percentage of the population that is infected
+   */
+  estimatedInfectedPercentage: number;
+
+  kalmanR = 0.1;
+  kalmanQ = 0.5;
+  kalmanA = 1.2;
 
 
   constructor(private dataService: DataService) {
@@ -131,41 +139,6 @@ export class AppComponent implements OnInit {
       this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing, firstDateIndex));
   }
 
-  private buildGraphData(name: string, data: number[], smoothing: boolean = true, start = 0, end = this.dates.length): Series {
-
-    let smoothedData: number[];
-    // Smooth!
-    if (smoothing) {
-      smoothedData = this.smooth(data);
-    } else {
-      smoothedData = [...data];
-    }
-
-    // smoothedData.splice(smoothedData.length - 1, 1);
-
-    return {
-      name,
-      series: smoothedData
-        .filter((_, i) => i >= start && i < end)
-        .map((gdd, i) => ({
-          name: this.dates[i],
-          value: gdd
-        }))
-    };
-  }
-
-  private smooth(data: number[]): number[] {
-    const smoothedData = [...data];
-    for (let i = 0; i < data.length - 1; i++) {
-      // Less then 10 is probably wrong...(sadly), especially if it greater than 10 the next day. lets borrow half of tomorrow
-      if (data[i] < 10 && data[i + 1] > 10) {
-        const smoothAmount = smoothedData[i + 1] * AppComponent.SMOOTH_AMOUNT;
-        smoothedData[i] += smoothAmount;
-        smoothedData[i + 1] -= smoothAmount;
-      }
-    }
-    return smoothedData;
-  }
 
   updateEstimatedInfectedData() {
 
@@ -203,6 +176,18 @@ export class AppComponent implements OnInit {
         }
       });
 
+    // Unfortunately, the estimates only go until "estimateTimeTillDeath" days ago. We extrapolate the rest, based on the estimates of the last week:
+    const derivativeDays = 5;
+    const estDerivative = (estKalman[estEnd - 1] - estKalman[estEnd - derivativeDays - 1]) / derivativeDays;
+    const lastEst = estKalman[estEnd - 1];
+    for (let i = estEnd; i < this.dates.length; i++) {
+      const day = (i - estEnd);
+      estKalman[i] = kalmanFilter.filter(lastEst + (estDerivative * day) - kalmanOffset) + kalmanOffset;
+    }
+
+    estKalman.forEach((e, i) => { if (e < 0) { estKalman[i] = 0; } });
+    estKalman.forEach((e, i) => estKalman[i] = Math.round(e));
+    estimatedInfected.forEach((e, i) => estimatedInfected[i] = Math.round(e));
 
     let startDate = Math.min(
       deathDiffs.findIndex(d => d > 0),
@@ -211,12 +196,52 @@ export class AppComponent implements OnInit {
       );
     if (startDate < 0) { startDate = 0; } else if (startDate > 0) { startDate--; }
 
+    this.selectedCountryTotalInfectedEstimate = estKalman.reduce((a, b) => a + b, 0 );
+    this.selectedCountryReportedTotalInfected = reportedCasesDiffs.reduce((a, b) => a + b, 0);
+
     this.estimateInfectionsGraphData = [
-      this.buildGraphData('New deaths', deathDiffs, false, startDate),
-      this.buildGraphData('Estimated new cases', estimatedInfected, this.smoothing, startDate),
-      this.buildGraphData('Reported new cases', reportedCasesDiffs, false, startDate),
-      this.buildGraphData('Estimated + Kalman', estKalman, false, startDate),
+      this.buildGraphData('Death per day', deathDiffs, false, startDate),
+      // this.buildGraphData('Estimated new cases', estimatedInfected, this.smoothing, startDate),
+      this.buildGraphData('Reported new cases per day', reportedCasesDiffs, false, startDate),
+      this.buildGraphData('Estimated new cases per day', estKalman, false, startDate),
     ];
 
+  }
+
+  private buildGraphData(name: string, data: number[], smoothing: boolean = true, start = 0, end = this.dates.length): Series {
+
+    let smoothedData: number[];
+    // Smooth!
+    if (smoothing) {
+      smoothedData = this.smooth(data);
+    } else {
+      smoothedData = [...data];
+    }
+
+    // smoothedData.splice(smoothedData.length - 1, 1);
+
+    return {
+      name,
+      series: smoothedData
+        .filter((_, i) => i >= start && i < end)
+        .map((d, i) => ({
+          name: this.dates[i],
+          value: this.logY ? (d <= 0 ? d : Math.log10(d)) : d,
+          tooltipText: "Hoi!!!" + d,
+        }))
+    };
+  }
+
+  private smooth(data: number[]): number[] {
+    const smoothedData = [...data];
+    for (let i = 0; i < data.length - 1; i++) {
+      // Less then 10 is probably wrong...(sadly), especially if it greater than 10 the next day. lets borrow half of tomorrow
+      if (data[i] < 10 && data[i + 1] > 10) {
+        const smoothAmount = smoothedData[i + 1] * AppComponent.SMOOTH_AMOUNT;
+        smoothedData[i] += smoothAmount;
+        smoothedData[i + 1] -= smoothAmount;
+      }
+    }
+    return smoothedData;
   }
 }

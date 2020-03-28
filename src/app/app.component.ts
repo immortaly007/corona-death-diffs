@@ -55,7 +55,7 @@ export class AppComponent implements OnInit {
   ];
   smoothing = true;
 
-  selectedEstimateCountry = { code: 'CN', label: 'China'};
+  selectedEstimateCountry = { code: 'NL', label: 'The Netherlands'};
   estimateDeathRate = 1.0;
   estimateTimeTillDeath = 8;
 
@@ -226,8 +226,7 @@ export class AppComponent implements OnInit {
         .filter((_, i) => i >= start && i < end)
         .map((d, i) => ({
           name: this.dates[i],
-          value: this.logY ? (d <= 0 ? d : Math.log10(d)) : d,
-          tooltipText: "Hoi!!!" + d,
+          value: this.logY ? (d <= 0 ? d : Math.log10(d)) : d
         }))
     };
   }

@@ -10,6 +10,12 @@ import {isoCountries} from './isoCountries';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit {
+
+
+  constructor(private http: HttpClient) {
+  }
+
+  static readonly SMOOTH_AMOUNT = 0.5;
   title = 'corona-deaths';
 
   data: any;
@@ -21,7 +27,8 @@ export class AppComponent implements OnInit {
   globalDeathDiff: number[];
 
   graphData: MultiSeries;
-  perCountryGraphData: any;
+  perCountryGraphData: MultiSeries;
+  estimateInfectionsGraphData: MultiSeries;
 
   view: any[] = [1200, 500];
 
@@ -46,11 +53,9 @@ export class AppComponent implements OnInit {
   ];
   smoothing = true;
 
-  static readonly SMOOTH_AMOUNT = 0.5;
-
-
-  constructor(private http: HttpClient) {
-  }
+  selectedEstimateCountry = { code: 'NL', label: 'Netherlands'};
+  estimateDeathRate = 1.0;
+  estimateTimeTillDeath = 14;
 
   ngOnInit(): void {
     this.http.get(environment.dataEndpoint).subscribe((res) => {
@@ -120,6 +125,7 @@ export class AppComponent implements OnInit {
 
       this.updateGlobalData();
       this.updatePerCountryGraphData();
+      this.updateEstimatedInfectedData();
     });
   }
 
@@ -148,7 +154,8 @@ export class AppComponent implements OnInit {
     const countriesSortedByDeaths = this.selectedCountries.map(c => ({code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
     countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
 
-    this.perCountryGraphData = countriesSortedByDeaths.map(c => this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
+    this.perCountryGraphData = countriesSortedByDeaths.map(c =>
+      this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
   }
 
   private buildGraphData(name: string, data: number[], smoothing: boolean = true): Series {
@@ -156,15 +163,7 @@ export class AppComponent implements OnInit {
     let smoothedData: number[];
     // Smooth!
     if (smoothing) {
-      smoothedData = [...data];
-      for (let i = 0; i < data.length - 1; i++) {
-        // Less then 10 is probably wrong...(sadly), especially if it greater than 10 the next day. lets borrow half of tomorrow
-        if (data[i] < 10 && data[i + 1] > 10) {
-          const smoothAmount = smoothedData[i + 1] * AppComponent.SMOOTH_AMOUNT;
-          smoothedData[i] += smoothAmount;
-          smoothedData[i + 1] -= smoothAmount;
-        }
-      }
+      smoothedData = this.smooth(data);
     } else {
       smoothedData = [...data];
     }
@@ -180,4 +179,37 @@ export class AppComponent implements OnInit {
     };
   }
 
+  private smooth(data: number[]): number[] {
+    const smoothedData = [...data];
+    for (let i = 0; i < data.length - 1; i++) {
+      // Less then 10 is probably wrong...(sadly), especially if it greater than 10 the next day. lets borrow half of tomorrow
+      if (data[i] < 10 && data[i + 1] > 10) {
+        const smoothAmount = smoothedData[i + 1] * AppComponent.SMOOTH_AMOUNT;
+        smoothedData[i] += smoothAmount;
+        smoothedData[i + 1] -= smoothAmount;
+      }
+    }
+    return smoothedData;
+  }
+
+  updateEstimatedInfectedData() {
+
+    let deathDiffs = [...this.deathDiffPerCountryPerDay[this.selectedEstimateCountry.code]];
+    if (this.smoothing) {
+      deathDiffs = this.smooth(deathDiffs);
+    }
+
+    const estimatedInfected = new Array(deathDiffs.length).fill(0);
+
+    // TODO Extend the "dates" if their are deaths before day "estimateTimeTillDeath"
+    for (let i = this.estimateTimeTillDeath; i < this.dates.length; i++) {
+      estimatedInfected[i - this.estimateTimeTillDeath] = deathDiffs[i] / (this.estimateDeathRate / 100);
+    }
+
+    this.estimateInfectionsGraphData = [
+      this.buildGraphData('# of deaths', deathDiffs, false),
+      this.buildGraphData('Estimated # infected', estimatedInfected, false),
+    ];
+
+  }
 }

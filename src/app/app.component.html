@@ -6,27 +6,9 @@
     <mat-slide-toggle [(ngModel)]="smoothing" (ngModelChange)="updatePerCountryGraphData(); updateGlobalData();">Smoothing</mat-slide-toggle>
     <div class="graph">
       <h2>Global deaths per day</h2>
-    <!-- Based on: https://stackblitz.com/edit/swimlane-line-chart?embed=1&file=app/app.component.ts -->
-    <ngx-charts-area-chart-stacked
-      [legend]="legend"
-      [animations]="animations"
-      [showXAxisLabel]="showXAxisLabel"
-      [showYAxisLabel]="showYAxisLabel"
-      [xAxis]="xAxis"
-      [yAxis]="yAxis"
-      [xAxisLabel]="xAxisLabel"
-      [yAxisLabel]="yAxisLabel"
-      [timeline]="timeline"
-      [results]="graphData"
-    >
-    </ngx-charts-area-chart-stacked>
-    </div>
-
-    <div class="graph">
-      <h2>Deaths per day in different countries</h2>
-      <ng-select [multiple]="true" [items]="countries" bindLabel="label" [(ngModel)]="selectedCountries" (ngModelChange)="updatePerCountryGraphData()"></ng-select>
-      <ngx-charts-line-chart
-        [legend]="true"
+      <!-- Based on: https://stackblitz.com/edit/swimlane-line-chart?embed=1&file=app/app.component.ts -->
+      <ngx-charts-area-chart-stacked
+        [legend]="legend"
         [animations]="animations"
         [showXAxisLabel]="showXAxisLabel"
         [showYAxisLabel]="showYAxisLabel"
@@ -35,9 +17,52 @@
         [xAxisLabel]="xAxisLabel"
         [yAxisLabel]="yAxisLabel"
         [timeline]="timeline"
-        [results]="perCountryGraphData"
+        [results]="graphData"
       >
-      </ngx-charts-line-chart>
+      </ngx-charts-area-chart-stacked>
+    </div>
+
+    <div>
+      <h2>Deaths per day in different countries</h2>
+      <ng-select [multiple]="true" [items]="countries" bindLabel="label" [(ngModel)]="selectedCountries" (ngModelChange)="updatePerCountryGraphData()"></ng-select>
+      <div class="graph">
+        <ngx-charts-line-chart
+          [legend]="true"
+          [animations]="animations"
+          [showXAxisLabel]="showXAxisLabel"
+          [showYAxisLabel]="showYAxisLabel"
+          [xAxis]="xAxis"
+          [yAxis]="yAxis"
+          [xAxisLabel]="xAxisLabel"
+          [yAxisLabel]="yAxisLabel"
+          [timeline]="timeline"
+          [results]="perCountryGraphData"
+        >
+        </ngx-charts-line-chart>
+      </div>
+    </div>
+
+    <div style="width: 100%">
+      <h2>Deaths per day in different countries</h2>
+      <p>Based on <a href="https://medium.com/@tomaspueyo/coronavirus-act-today-or-people-will-die-f4d3d9cd99ca" target="_blank">a post by Tomas Pueyo on Medium</a></p>
+      <ng-select [multiple]="false" [items]="countries" bindLabel="label" [(ngModel)]="selectedEstimateCountry" (ngModelChange)="updateEstimatedInfectedData()"></ng-select>
+      <p><mat-slider [min]="0.1" [max]="10" [thumbLabel]="true" [(ngModel)]="estimateDeathRate" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Estimated death rate: {{estimateDeathRate}}%</p>
+      <p><mat-slider [min]="1" [max]="30" [thumbLabel]="true" [(ngModel)]="estimateTimeTillDeath" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Estimated days between initial infection and death: {{estimateTimeTillDeath}} days</p>
+      <div class="graph">
+        <ngx-charts-line-chart
+          [legend]="true"
+          [animations]="animations"
+          [showXAxisLabel]="showXAxisLabel"
+          [showYAxisLabel]="false"
+          [xAxis]="xAxis"
+          [yAxis]="yAxis"
+          [xAxisLabel]="xAxisLabel"
+          [yAxisLabel]="yAxisLabel"
+          [timeline]="timeline"
+          [results]="estimateInfectionsGraphData"
+        >
+        </ngx-charts-line-chart>
+      </div>
     </div>
   </div>
 </div>

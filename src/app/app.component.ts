@@ -4,6 +4,8 @@ import {MultiSeries, Series} from '@swimlane/ngx-charts';
 import {environment} from '../environments/environment';
 import {isoCountries} from './isoCountries';
 
+import * as moment from 'moment';
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -58,23 +60,31 @@ export class AppComponent implements OnInit {
   estimateTimeTillDeath = 14;
 
   ngOnInit(): void {
-    this.http.get(environment.dataEndpoint).subscribe((res) => {
-      let d: any[] = res['data'];
-      this.data = d;
+    this.http.get(environment.dataEndpoint).subscribe((res: {data: any[], tokens: string[]}) => {
+
+      // I don't like the non-ISO dates, so let's convert those first (this makes the data become sortable)
+      res.data.forEach(e => e.date = this.apiToIsoDate(e.date));
+      // let's also sort the data on date...
+      res.data.sort((a, b) => a.date === b.date ? 0 : (a.date < b.date ? -1 : 1));
+
+      const d = this.data = res.data;
       this.totalDeathsPerCountry = {};
 
       // Initialize "totalDeathsPerCountry"
       this.countryCodes = d.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== '');
       this.countryCodes = [...new Set(this.countryCodes)];
-      this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = []);
       console.log(this.countryCodes);
       this.countries = this.countryCodes.map(cc => ({
         code: cc,
         label: isoCountries[cc]
       }));
 
+      // Initialize "total deaths per country"
+      this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = []);
+
       // Fill "dates"
-      this.dates = [...new Set(d.map(dateData => dateData.date))];
+      this.dates = [...new Set(d.map(e => e.date))];
+
 
       // Old code
       // Fill totalDeathsPerCountry codes
@@ -92,12 +102,17 @@ export class AppComponent implements OnInit {
       //   }
       // }
 
-      for(const entry of this.data){
-        //FIXME: This assumes that each country starts on the same day and is sorted, which it doesn't
-        this.totalDeathsPerCountry[entry.countrycode].push(entry.deaths);
+      for (const entry of this.data) {
+        const countryDeaths = this.totalDeathsPerCountry[entry.countrycode];
+        if (this.totalDeathsPerCountry[entry.countrycode].length === 0) {
+          // First entry, let's check how many dates we need to fill with zeroes
+          const toFill = this.dates.indexOf(entry.date);
+          for (let i = 0; i < toFill; i++) {
+            countryDeaths.push(0);
+          }
+        }
+        this.totalDeathsPerCountry[entry.countrycode].push(+entry.deaths);
       }
-
-
 
       // Fill deathDiffPerCountryPerDay
       this.deathDiffPerCountryPerDay = {};
@@ -211,5 +226,12 @@ export class AppComponent implements OnInit {
       this.buildGraphData('Estimated # infected', estimatedInfected, false),
     ];
 
+  }
+
+  apiToIsoDate(date: string) {
+    return moment(date, 'MM/DD/YYYY').format('YYYY-MM-DD');
+    // const dateRegex = /^([0-9]+)\/([0-9]+)\/([0-9]+)$/;
+    // const res = dateRegex.exec(date);
+    // return moment(2000 + Number.parseInt(res[3], 10), Number.parseInt(res[1], 10) - 1, Number.parseInt(res[2], 10)).toISOString();
   }
 }

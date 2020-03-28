@@ -20,7 +20,7 @@ export class AppComponent implements OnInit {
   static readonly SMOOTH_AMOUNT = 0.5;
   title = 'corona-deaths';
 
-  data: any;
+  data: any[];
   dates: string[];
   countryCodes: string[];
   countries: { code: string, label: string }[];
@@ -64,8 +64,11 @@ export class AppComponent implements OnInit {
 
       // I don't like the non-ISO dates, so let's convert those first (this makes the data become sortable)
       res.data.forEach(e => e.date = this.apiToIsoDate(e.date));
+
       // let's also sort the data on date...
       res.data.sort((a, b) => a.date === b.date ? 0 : (a.date < b.date ? -1 : 1));
+
+      console.log(res.data.filter(e => e.countrycode === 'NL'));
 
       const d = this.data = res.data;
       this.totalDeathsPerCountry = {};
@@ -79,39 +82,15 @@ export class AppComponent implements OnInit {
         label: isoCountries[cc]
       }));
 
-      // Initialize "total deaths per country"
-      this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = []);
-
       // Fill "dates"
-      this.dates = [...new Set(d.map(e => e.date))];
+      this.dates = [...new Set(d.map(e => e.date))].sort();
 
+      // Initialize "total deaths per country"
+      this.countryCodes.forEach(c => this.totalDeathsPerCountry[c] = new Array(this.dates.length).fill(0));
 
-      // Old code
-      // Fill totalDeathsPerCountry codes
-      // for (let i = 0; i < d.length; i++) {
-      //   for (const countryCode of this.countryCodes) {
-      //     this.totalDeathsPerCountry[countryCode].push(+d[i].data.find(cd => cd.countrycode === countryCode).totaldeaths);
-      //   }
-      // }
-      //
-      // //FIXME: this.data.find() is undefined, don't know why
-      // for (const day of this.dates) {
-      //   for (const countryCode of this.countryCodes) {
-      //     let num: number = this.data.find(cd => cd.countrycode === countryCode && cd.date == day).deaths;
-      //     this.totalDeathsPerCountry[countryCode].push(num);
-      //   }
-      // }
-
-      for (const entry of this.data) {
-        const countryDeaths = this.totalDeathsPerCountry[entry.countrycode];
-        if (this.totalDeathsPerCountry[entry.countrycode].length === 0) {
-          // First entry, let's check how many dates we need to fill with zeroes
-          const toFill = this.dates.indexOf(entry.date);
-          for (let i = 0; i < toFill; i++) {
-            countryDeaths.push(0);
-          }
-        }
-        this.totalDeathsPerCountry[entry.countrycode].push(+entry.deaths);
+      for (const entry of d) {
+        const dateIndex = this.dates.indexOf(entry.date);
+        this.totalDeathsPerCountry[entry.countrycode][dateIndex] = +entry.deaths;
       }
 
       // Fill deathDiffPerCountryPerDay
@@ -169,11 +148,15 @@ export class AppComponent implements OnInit {
     const countriesSortedByDeaths = this.selectedCountries.map(c => ({code: c.code, label: c.label, deaths: this.totalForCountry(c.code)}));
     countriesSortedByDeaths.sort((c1, c2) => c1.deaths === c2.deaths ? 0 : (c1.deaths > c2.deaths ? -1 : 1));
 
+    let firstDateIndex = countriesSortedByDeaths.map(c => this.deathDiffPerCountryPerDay[c.code].findIndex(d => d > 0))
+      .reduce((a, b) => a < 0 ? b : (b < 0 ? a : Math.min(a, b)), this.dates.length);
+    if (firstDateIndex > 0) { firstDateIndex--; }
+
     this.perCountryGraphData = countriesSortedByDeaths.map(c =>
-      this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing));
+      this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing, firstDateIndex));
   }
 
-  private buildGraphData(name: string, data: number[], smoothing: boolean = true): Series {
+  private buildGraphData(name: string, data: number[], smoothing: boolean = true, start = 0): Series {
 
     let smoothedData: number[];
     // Smooth!
@@ -183,11 +166,11 @@ export class AppComponent implements OnInit {
       smoothedData = [...data];
     }
 
-    smoothedData.splice(smoothedData.length - 1, 1);
+    // smoothedData.splice(smoothedData.length - 1, 1);
 
     return {
       name,
-      series: smoothedData.map((gdd, i) => ({
+      series: smoothedData.filter((_, i) => i >= start).map((gdd, i) => ({
         name: this.dates[i],
         value: gdd
       }))

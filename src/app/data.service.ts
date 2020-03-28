@@ -12,9 +12,12 @@ export class DataService {
 
   dates: ReplaySubject<string[]> = new ReplaySubject<string[]>();
   countries: ReplaySubject<{ code: string, label: string }[]> = new ReplaySubject<{code: string, label: string}[]>();
-  totalDeathsPerCountry: ReplaySubject<{ [countryCode: string]: number[] }> = new ReplaySubject<{[p: string]: number[]}>();
+  totalDeathsPerCountryPerDay: ReplaySubject<{ [countryCode: string]: number[] }> = new ReplaySubject<{[p: string]: number[]}>();
   deathDiffPerCountryPerDay: ReplaySubject<{ [countryCode: string]: number[] }> = new ReplaySubject<{[p: string]: number[]}>();
   globalDeathDiff: ReplaySubject<number[]> = new ReplaySubject<number[]>();
+
+  totalReportedCasesPerCountryPerDay: ReplaySubject<{ [countryCode: string]: number[] }> = new ReplaySubject<{[p: string]: number[]}>();
+  reportedCasesDiffPerCountryPerDay: ReplaySubject<{ [countryCode: string]: number[] }> = new ReplaySubject<{[p: string]: number[]}>();
 
   constructor(private http: HttpClient) {
 
@@ -43,27 +46,11 @@ export class DataService {
       this.dates.next(dates);
 
       // Initialize "total deaths per country"
-      const totalDeathsPerCountry: { [countryCode: string]: number[] } = {};
-      countryCodes.forEach(c => totalDeathsPerCountry[c] = new Array(dates.length).fill(0));
-
-      for (const entry of d) {
-        const dateIndex = dates.indexOf(entry.date);
-        totalDeathsPerCountry[entry.countrycode][dateIndex] = +entry.deaths;
-      }
-      this.totalDeathsPerCountry.next(totalDeathsPerCountry);
+      const totalDeathsPerCountryPerDay: { [countryCode: string]: number[] } = DataService.toPerCountryPerDay(d,  'deaths', dates, countryCodes);
+      this.totalDeathsPerCountryPerDay.next(totalDeathsPerCountryPerDay);
 
       // Fill deathDiffPerCountryPerDay
-      const deathDiffPerCountryPerDay: { [countryCode: string]: number[] } = {};
-      for (const countryCode of countryCodes) {
-        const totalDeathsPerDay = totalDeathsPerCountry[countryCode];
-        deathDiffPerCountryPerDay[countryCode] = totalDeathsPerDay.map((data, i) => {
-          if (i === 0) {
-            return data;
-          } else {
-            return data - totalDeathsPerDay[i - 1];
-          }
-        });
-      }
+      const deathDiffPerCountryPerDay = DataService.toDiffsPerCountryPerDay(totalDeathsPerCountryPerDay)
       this.deathDiffPerCountryPerDay.next(deathDiffPerCountryPerDay);
 
       // Fill globalDeathDiff
@@ -72,7 +59,39 @@ export class DataService {
         globalDeathDiff[i] += v;
       }));
       this.globalDeathDiff.next(globalDeathDiff);
+
+      // Fill "totalReportedInfectedPerCountryPerDay"
+      const totalReportedCasesPerCountryPerDay = DataService.toPerCountryPerDay(d, 'cases', dates, countryCodes);
+      this.totalReportedCasesPerCountryPerDay.next(totalReportedCasesPerCountryPerDay);
+
+      // Fill "reportedCasesDiffPerCountryPerDay"
+      const reportedCasesDiffPerCountryPerDay = DataService.toDiffsPerCountryPerDay(totalReportedCasesPerCountryPerDay);
+      this.reportedCasesDiffPerCountryPerDay.next(reportedCasesDiffPerCountryPerDay);
     });
+  }
+
+  private static toPerCountryPerDay(data: any[], field: string, dates: string[], countryCodes: string[])
+    : { [countryCode: string]: number[] } {
+
+    const res: { [countryCode: string]: number[] } = {};
+    countryCodes.forEach(c => res[c] = new Array(dates.length).fill(0));
+    data.forEach(e => res[e.countrycode][dates.indexOf(e.date)] = +e[field]);
+    return res;
+  }
+
+  private static toDiffsPerCountryPerDay(perCountryPerDay: { [countryCode: string]: number[] }) {
+    const res: { [countryCode: string]: number[] } = {};
+    for (const countryCode of Object.keys(perCountryPerDay)) {
+      const totalPerDay = perCountryPerDay[countryCode];
+      res[countryCode] = totalPerDay.map((data, i) => {
+        if (i === 0) {
+          return data;
+        } else {
+          return data - totalPerDay[i - 1];
+        }
+      });
+    }
+    return res;
   }
 
   private static apiToIsoDate(date: string) {

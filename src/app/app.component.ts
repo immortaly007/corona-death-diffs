@@ -8,6 +8,8 @@ import * as moment from 'moment';
 import { DataService } from './data.service';
 import { combineLatest } from 'rxjs';
 
+import KalmanFilter from 'kalmanjs';
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -23,6 +25,7 @@ export class AppComponent implements OnInit {
   totalDeathsPerCountry: { [countryCode: string]: number[] };
   globalDeathDiffs: number[];
   deathDiffPerCountryPerDay: { [countryCode: string]: number[] };
+  reportedCasesDiffsPerCountryPerDay: { [countryCode: string]: number[] };
 
   graphData: MultiSeries;
   perCountryGraphData: MultiSeries;
@@ -51,9 +54,14 @@ export class AppComponent implements OnInit {
   ];
   smoothing = true;
 
-  selectedEstimateCountry = { code: 'NL', label: 'Netherlands'};
+  selectedEstimateCountry = { code: 'CN', label: 'China'};
   estimateDeathRate = 1.0;
-  estimateTimeTillDeath = 14;
+  estimateTimeTillDeath = 8;
+
+  kalmanR = 0.01;
+  kalmanQ = 10;
+  kalmanA = 1.3;
+
 
   constructor(private dataService: DataService) {
   }
@@ -61,13 +69,17 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
 
     // tslint:disable-next-line:max-line-length
-    combineLatest([this.dataService.dates, this.dataService.countries, this.dataService.totalDeathsPerCountry, this.dataService.globalDeathDiff, this.dataService.deathDiffPerCountryPerDay])
-      .subscribe(([dates, countries, totalDeathsPerCountry, globalDeathDiffs, deathDiffPerCountryPerDay]) => {
+    combineLatest([this.dataService.dates, this.dataService.countries,
+      this.dataService.totalDeathsPerCountryPerDay, this.dataService.globalDeathDiff, this.dataService.deathDiffPerCountryPerDay,
+      this.dataService.reportedCasesDiffPerCountryPerDay,
+    ])
+      .subscribe(([dates, countries, totalDeathsPerCountry, globalDeathDiffs, deathDiffPerCountryPerDay, reportedCasesDiff]) => {
         this.dates = dates;
         this.countries = countries;
         this.totalDeathsPerCountry = totalDeathsPerCountry;
         this.globalDeathDiffs = globalDeathDiffs;
         this.deathDiffPerCountryPerDay = deathDiffPerCountryPerDay;
+        this.reportedCasesDiffsPerCountryPerDay = reportedCasesDiff;
         this.updateGraphData();
       });
       // console.log(this.dates);
@@ -77,7 +89,7 @@ export class AppComponent implements OnInit {
 
   }
 
-  private updateGraphData() {
+  updateGraphData() {
 
     if (this.dates && this.countries && this.deathDiffPerCountryPerDay) {
       this.updateGlobalData();
@@ -119,7 +131,7 @@ export class AppComponent implements OnInit {
       this.buildGraphData(c.label, this.deathDiffPerCountryPerDay[c.code], this.smoothing, firstDateIndex));
   }
 
-  private buildGraphData(name: string, data: number[], smoothing: boolean = true, start = 0): Series {
+  private buildGraphData(name: string, data: number[], smoothing: boolean = true, start = 0, end = this.dates.length): Series {
 
     let smoothedData: number[];
     // Smooth!
@@ -133,10 +145,12 @@ export class AppComponent implements OnInit {
 
     return {
       name,
-      series: smoothedData.filter((_, i) => i >= start).map((gdd, i) => ({
-        name: this.dates[i],
-        value: gdd
-      }))
+      series: smoothedData
+        .filter((_, i) => i >= start && i < end)
+        .map((gdd, i) => ({
+          name: this.dates[i],
+          value: gdd
+        }))
     };
   }
 
@@ -160,16 +174,48 @@ export class AppComponent implements OnInit {
       deathDiffs = this.smooth(deathDiffs);
     }
 
-    const estimatedInfected = new Array(deathDiffs.length).fill(0);
+    const reportedCasesDiffs = [...this.reportedCasesDiffsPerCountryPerDay[this.selectedEstimateCountry.code]];
 
+    const estimatedInfected: number[] = new Array(deathDiffs.length).fill(0);
     // TODO Extend the "dates" if their are deaths before day "estimateTimeTillDeath"
     for (let i = this.estimateTimeTillDeath; i < this.dates.length; i++) {
       estimatedInfected[i - this.estimateTimeTillDeath] = deathDiffs[i] / (this.estimateDeathRate / 100);
     }
 
+    const estStart = estimatedInfected.findIndex(e => e > 0);
+    const estEnd = estimatedInfected.length - [...estimatedInfected].reverse().findIndex(e => e > 0);
+    console.log(estStart);
+    console.log(estEnd);
+
+    const estKalman = new Array(deathDiffs.length).fill(0);
+    const kalmanOffset = estimatedInfected[estStart];
+    const kalmanFilter = new KalmanFilter({
+      // R is an estimate
+      R: this.kalmanR,
+      Q: this.kalmanQ,
+      A: this.kalmanA
+    });
+
+    estimatedInfected
+      .forEach((e, i) => {
+        if (i >= estStart && i < estEnd) {
+          estKalman[i] = kalmanFilter.filter(e - kalmanOffset) + kalmanOffset;
+        }
+      });
+
+
+    let startDate = Math.min(
+      deathDiffs.findIndex(d => d > 0),
+      estStart,
+      reportedCasesDiffs.findIndex(d => d > 0),
+      );
+    if (startDate < 0) { startDate = 0; } else if (startDate > 0) { startDate--; }
+
     this.estimateInfectionsGraphData = [
-      this.buildGraphData('# of deaths', deathDiffs, false),
-      this.buildGraphData('Estimated # infected', estimatedInfected, false),
+      this.buildGraphData('New deaths', deathDiffs, false, startDate),
+      this.buildGraphData('Estimated new cases', estimatedInfected, this.smoothing, startDate),
+      this.buildGraphData('Reported new cases', reportedCasesDiffs, false, startDate),
+      this.buildGraphData('Estimated + Kalman', estKalman, false, startDate),
     ];
 
   }

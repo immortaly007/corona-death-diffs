@@ -1,9 +1,11 @@
 <div class="content">
   <h1>Corona Deaths per day</h1>
+  <mat-slide-toggle [(ngModel)]="smoothing" (ngModelChange)="updatePerCountryGraphData(); updateGlobalData();">Smoothing</mat-slide-toggle>
 
   <div *ngIf="!dates">Loading...</div>
   <div *ngIf="dates">
-    <mat-slide-toggle [(ngModel)]="smoothing" (ngModelChange)="updatePerCountryGraphData(); updateGlobalData();">Smoothing</mat-slide-toggle>
+    <mat-tab-group (selectedTabChange)="updateGraphData()">
+      <mat-tab label="Data">
     <div class="graph">
       <h2>Global deaths per day</h2>
       <!-- Based on: https://stackblitz.com/edit/swimlane-line-chart?embed=1&file=app/app.component.ts -->
@@ -41,13 +43,21 @@
         </ngx-charts-line-chart>
       </div>
     </div>
+      </mat-tab>
+      <mat-tab label="Estimates">
 
-    <div style="width: 100%">
-      <h2>Deaths per day in different countries</h2>
+    <div>
+      <h2>Estimated infected, based on the number of deaths</h2>
       <p>Based on <a href="https://medium.com/@tomaspueyo/coronavirus-act-today-or-people-will-die-f4d3d9cd99ca" target="_blank">a post by Tomas Pueyo on Medium</a></p>
       <ng-select [multiple]="false" [items]="countries" bindLabel="label" [(ngModel)]="selectedEstimateCountry" (ngModelChange)="updateEstimatedInfectedData()"></ng-select>
-      <p><mat-slider [min]="0.1" [max]="10" [thumbLabel]="true" [(ngModel)]="estimateDeathRate" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Estimated death rate: {{estimateDeathRate}}%</p>
-      <p><mat-slider [min]="1" [max]="30" [thumbLabel]="true" [(ngModel)]="estimateTimeTillDeath" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Estimated days between initial infection and death: {{estimateTimeTillDeath}} days</p>
+      <p><mat-slider style="width: 60%" [min]="0" [max]="20" [step]="0.5" [thumbLabel]="true" [(ngModel)]="estimateDeathRate" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Estimated death rate: {{estimateDeathRate}}%</p>
+      <p><mat-slider style="width: 60%" [min]="1" [max]="30" [step]="1" [thumbLabel]="true" [(ngModel)]="estimateTimeTillDeath" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Estimated days between initial infection and death: {{estimateTimeTillDeath}} days</p>
+
+      <p><mat-slider style="width: 60%" [min]="0" [max]="1" [step]="0.02" [thumbLabel]="true" [(ngModel)]="kalmanR" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Kalman R</p>
+      <p><mat-slider style="width: 60%" [min]="0" [max]="50" [step]="0.5" [thumbLabel]="true" [(ngModel)]="kalmanQ" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Kalman Q</p>
+      <p><mat-slider style="width: 60%" [min]="1" [max]="4" [step]="0.05" [thumbLabel]="true" [(ngModel)]="kalmanA" (ngModelChange)="updateEstimatedInfectedData()"></mat-slider>Kalman A</p>
+
+
       <div class="graph">
         <ngx-charts-line-chart
           [legend]="true"
@@ -64,5 +74,8 @@
         </ngx-charts-line-chart>
       </div>
     </div>
+    </mat-tab>
+    </mat-tab-group>
+
   </div>
 </div>

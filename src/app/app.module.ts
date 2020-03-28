@@ -9,6 +9,7 @@ import { NgSelectModule } from '@ng-select/ng-select';
 import { FormsModule } from '@angular/forms';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
+import { MatTabsModule } from '@angular/material/tabs';
 
 @NgModule({
   declarations: [
@@ -23,6 +24,7 @@ import { MatSliderModule } from '@angular/material/slider';
     FormsModule,
     MatSlideToggleModule,
     MatSliderModule,
+    MatTabsModule,
   ],
   providers: [],
   bootstrap: [AppComponent]

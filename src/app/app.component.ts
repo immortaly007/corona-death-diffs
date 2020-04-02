@@ -223,11 +223,11 @@ export class AppComponent implements OnInit {
     return {
       name,
       series: smoothedData
-        .filter((_, i) => i >= start && i < end)
         .map((d, i) => ({
           name: this.dates[i],
           value: this.logY ? (d <= 0 ? d : Math.log10(d)) : d
         }))
+        .filter((_, i) => i >= start && i < end)
     };
   }
 

@@ -31,10 +31,10 @@ export class DataService {
 
       console.log(res.data.filter(e => e.countrycode === 'NL'));
 
-      const d = res.data;
+      const d = res.data.filter(e => e.countrycode != null && e.countrycode.trim() !== '');
 
       // Initialize "totalDeathsPerCountry"
-      const countryCodes = [...new Set(d.map(cd => cd.countrycode).filter(cc => cc != null && cc.trim() !== ''))];
+      const countryCodes = [...new Set(d.map(cd => cd.countrycode))];
       console.log(countryCodes);
       this.countries.next(countryCodes.map(cc => ({
         code: cc,
@@ -50,7 +50,7 @@ export class DataService {
       this.totalDeathsPerCountryPerDay.next(totalDeathsPerCountryPerDay);
 
       // Fill deathDiffPerCountryPerDay
-      const deathDiffPerCountryPerDay = DataService.toDiffsPerCountryPerDay(totalDeathsPerCountryPerDay)
+      const deathDiffPerCountryPerDay = DataService.toDiffsPerCountryPerDay(totalDeathsPerCountryPerDay);
       this.deathDiffPerCountryPerDay.next(deathDiffPerCountryPerDay);
 
       // Fill globalDeathDiff
